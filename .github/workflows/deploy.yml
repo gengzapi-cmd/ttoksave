@@ -1,43 +1,47 @@
-name: Deploy Ttoksave Server
+name: Process TikTok
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      tiktok_url:
+        description: 'TikTok URL'
+        required: true
+        type: string
 
 jobs:
-  build:
+  process:
     runs-on: ubuntu-latest
-    
+    outputs:
+      thumbnail: ${{ steps.process.outputs.thumbnail }}
+      metadata: ${{ steps.process.outputs.metadata }}
+      formats: ${{ steps.process.outputs.formats }}
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.OS }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.OS }}-node-
-            
-      - name: Install dependencies
-        working-directory: ./server
-        run: npm ci
-        
-      - name: Build project
-        working-directory: ./server
-        run: npm run build
-        
-      - name: Deploy to production
-        uses: easingthemes/ssh-deploy@v2
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-          TARGET: ${{ secrets.REMOTE_TARGET }}
-          SOURCE: "server/dist/, server/package.json, server/package-lock.json"
-          ARGS: "-avz --delete"
+
+      - name: Process TikTok
+        id: process
+        run: |
+          node -e "
+            const tiktokUrl = '${{ github.event.inputs.tiktok_url }}';
+            console.log('Processing:', tiktokUrl);
+            const result = {
+              metadata: {
+                thumbnail: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=500&h=500&fit=crop',
+                description: 'Sample TikTok video',
+                author: { username: '@creator', nickname: 'Creator' }
+              },
+              formats: [
+                { id: 'no-watermark', label: 'No Watermark', url: 'https://example.com/no-watermark.mp4' },
+                { id: 'with-watermark', label: 'With Watermark', url: 'https://example.com/with-watermark.mp4' }
+              ]
+            };
+            console.log('::set-output name=thumbnail::' + result.metadata.thumbnail);
+            console.log('::set-output name=metadata::' + JSON.stringify(result.metadata));
+            console.log('::set-output name=formats::' + JSON.stringify(result.formats));
+          "
